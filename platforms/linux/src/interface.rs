@@ -7,6 +7,7 @@ use log::debug;
 use netconfig::sys::InterfaceExt;
 use std::io;
 use std::io::{Read, Write};
+use std::os::fd::{AsRawFd, RawFd};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tunio_core::config::IfConfig;
@@ -20,6 +21,7 @@ use tunio_core::Error;
 pub struct LinuxInterface<Q> {
     name: String,
     pub(crate) queue: Q,
+    raw_fd: RawFd,
 }
 
 impl<Q> LinuxInterface<Q> {
@@ -37,6 +39,7 @@ impl<Q: FdQueueT> InterfaceT for LinuxInterface<Q> {
         params: IfConfig<Self::PlatformIfConfig>,
     ) -> Result<Self, Error> {
         let Device { device, name } = create_device(&params.name, params.layer, Q::BLOCKING)?;
+        let raw_fd = device.as_raw_fd();
         let queue = Q::new(device.into());
 
         if params.name != name {
@@ -46,7 +49,7 @@ impl<Q: FdQueueT> InterfaceT for LinuxInterface<Q> {
             );
         }
 
-        Ok(Self { name, queue })
+        Ok(Self { name, queue, raw_fd })
     }
 
     fn up(&mut self) -> Result<(), Error> {
@@ -65,6 +68,11 @@ impl<Q: FdQueueT> InterfaceT for LinuxInterface<Q> {
 pub type Interface = LinuxInterface<SyncFdQueue>;
 impl SyncQueueT for Interface {}
 
+impl AsRawFd for Interface{
+    fn as_raw_fd(&self) -> std::os::fd::RawFd {
+        self.raw_fd
+    }
+}
 impl<Q: SyncQueueT> Read for LinuxInterface<Q> {
     delegate! {
         to self.queue {
