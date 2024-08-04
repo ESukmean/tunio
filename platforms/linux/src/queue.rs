@@ -1,5 +1,6 @@
 use crate::Error;
-use libc::{IFF_NO_PI, IFF_TAP, IFF_TUN};
+use libc::{uname, utsname, IFF_MULTI_QUEUE, IFF_NO_PI, IFF_TAP, IFF_TUN};
+use log::warn;
 use netconfig::sys::posix::ifreq::ifreq;
 use std::fs;
 use std::os::unix::fs::OpenOptionsExt;
@@ -31,6 +32,35 @@ pub(crate) fn create_device(name: &str, layer: Layer, blocking: bool) -> Result<
         Layer::L3 => IFF_TUN,
     };
     init_flags |= IFF_NO_PI;
+
+    // https://www.kernel.org/doc/html/v5.12/networking/tuntap.html#multiqueue-tuntap-interface
+    // From version 3.8, Linux supports multiqueue tuntap which can uses multiple file descriptors (queues) to parallelize packets sending or receiving.
+    // check if linux kernel version is 3.8+ and set IFF_MUTLI_QUEUE
+    unsafe {
+        let mut uname_buf: std::mem::MaybeUninit<utsname> =
+            std::mem::MaybeUninit::<utsname>::zeroed();
+        uname(uname_buf.as_mut_ptr());
+
+        let uname_data = uname_buf.assume_init();
+        let uname_str =
+            std::str::from_utf8_unchecked(std::mem::transmute(&uname_data.release as &[i8]));
+
+        let mut version = uname_str.split(".");
+
+        match (
+            version.next().and_then(|s| s.parse::<usize>().ok()),
+            version.next().and_then(|s| s.parse::<usize>().ok()),
+        ) {
+            (Some(major), Some(minor)) if major > 3 || (major == 3 && minor >= 8) => {
+                init_flags |= IFF_MULTI_QUEUE;
+            }
+            _ => {
+                warn!(
+                        "Kernel doesn't support Multique TUN interface (must be Linux Kernel 3.8+, current: {uname_str:?})"
+                    )
+            }
+        }
+    }
 
     let mut req = ifreq::new(name);
     req.ifr_ifru.ifru_flags = init_flags as _;
