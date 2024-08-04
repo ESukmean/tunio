@@ -17,7 +17,7 @@ netconfig.workspace = true
 derive_builder.workspace = true
 delegate.workspace = true
 thiserror = "1.0.31"
-tokio = { workspace = true, features = ["net"], optional = true }
+tokio = { workspace = true, features = ["net", "io-util"], optional = true }
 
 [features]
 tokio = ["dep:tokio"]

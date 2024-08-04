@@ -36,6 +36,24 @@ pub(crate) fn create_device(name: &str, layer: Layer, blocking: bool) -> Result<
     // https://www.kernel.org/doc/html/v5.12/networking/tuntap.html#multiqueue-tuntap-interface
     // From version 3.8, Linux supports multiqueue tuntap which can uses multiple file descriptors (queues) to parallelize packets sending or receiving.
     // check if linux kernel version is 3.8+ and set IFF_MUTLI_QUEUE
+    if check_if_multiqueue_support() {
+        init_flags |= IFF_MULTI_QUEUE;
+    }
+
+    let mut req = ifreq::new(name);
+    req.ifr_ifru.ifru_flags = init_flags as _;
+
+    unsafe { ioctls::tunsetiff(tun_device.as_raw_fd(), &req as *const _ as _) }.unwrap();
+
+    // Name can change due to formatting
+    Ok(Device {
+        device: tun_device,
+        name: String::try_from(req.ifr_ifrn)
+            .map_err(|e| Error::InterfaceNameError(format!("{e:?}")))?,
+    })
+}
+
+fn check_if_multiqueue_support() -> bool {
     unsafe {
         let mut uname_buf: std::mem::MaybeUninit<utsname> =
             std::mem::MaybeUninit::<utsname>::zeroed();
@@ -52,25 +70,14 @@ pub(crate) fn create_device(name: &str, layer: Layer, blocking: bool) -> Result<
             version.next().and_then(|s| s.parse::<usize>().ok()),
         ) {
             (Some(major), Some(minor)) if major > 3 || (major == 3 && minor >= 8) => {
-                init_flags |= IFF_MULTI_QUEUE;
+                return true;
             }
             _ => {
                 warn!(
-                        "Kernel doesn't support Multique TUN interface (must be Linux Kernel 3.8+, current: {uname_str:?})"
-                    )
+                    "Kernel doesn't support Multique TUN interface (must be Linux Kernel >= 3.8, current: {uname_str:?})"
+                );
+                return false;
             }
         }
     }
-
-    let mut req = ifreq::new(name);
-    req.ifr_ifru.ifru_flags = init_flags as _;
-
-    unsafe { ioctls::tunsetiff(tun_device.as_raw_fd(), &req as *const _ as _) }.unwrap();
-
-    // Name can change due to formatting
-    Ok(Device {
-        device: tun_device,
-        name: String::try_from(req.ifr_ifrn)
-            .map_err(|e| Error::InterfaceNameError(format!("{e:?}")))?,
-    })
 }

@@ -19,6 +19,7 @@ delegate.workspace = true
 tunio-core.workspace = true
 nix.workspace = true
 libc.workspace = true
+tokio.workspace = true
 
 [features]
 tokio = ["tunio-core/tokio"]

@@ -2,7 +2,6 @@ use super::queue::{create_device, Device};
 use super::Driver;
 use super::PlatformIfConfig;
 use delegate::delegate;
-use futures::{AsyncRead, AsyncWrite};
 use log::debug;
 use netconfig::sys::InterfaceExt;
 use std::io;
@@ -10,6 +9,8 @@ use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, RawFd};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+#[cfg(feature = "tokio")]
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tunio_core::config::IfConfig;
 use tunio_core::queue::syncfd::SyncFdQueue;
 #[cfg(feature = "tokio")]
@@ -49,7 +50,11 @@ impl<Q: FdQueueT> InterfaceT for LinuxInterface<Q> {
             );
         }
 
-        Ok(Self { name, queue, raw_fd })
+        Ok(Self {
+            name,
+            queue,
+            raw_fd,
+        })
     }
 
     fn up(&mut self) -> Result<(), Error> {
@@ -68,7 +73,7 @@ impl<Q: FdQueueT> InterfaceT for LinuxInterface<Q> {
 pub type Interface = LinuxInterface<SyncFdQueue>;
 impl SyncQueueT for Interface {}
 
-impl AsRawFd for Interface{
+impl AsRawFd for Interface {
     fn as_raw_fd(&self) -> std::os::fd::RawFd {
         self.raw_fd
     }
@@ -98,7 +103,7 @@ impl AsyncQueueT for TokioInterface {}
 impl<Q: AsyncQueueT + Unpin> AsyncRead for LinuxInterface<Q> {
     delegate! {
         to Pin::new(&mut self.queue) {
-            fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>>;
+            fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>,) -> Poll<io::Result<()>>;
         }
     }
 }
@@ -108,7 +113,7 @@ impl<Q: AsyncQueueT + Unpin> AsyncWrite for LinuxInterface<Q> {
         to Pin::new(&mut self.queue) {
             fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>>;
             fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>>;
-            fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>>;
+            fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>>;
         }
     }
 }

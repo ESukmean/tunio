@@ -1,6 +1,6 @@
 [package]
 name = "tunio"
-version = "0.4.0"
+version = "0.5.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -60,12 +60,12 @@ edition = "2021"
 rust-version = "1.64"
 
 [workspace.dependencies]
-log = "0.4.17"
+log = "0.4"
 netconfig = "0.4.0"
-futures = "0.3.21"
-derive_builder = "0.11.2"
-delegate = "0.8.0"
+futures = "0.3"
+derive_builder = "0.20"
+delegate = "0.12.0"
 tunio-core = { version = "0.1.0", path = "core" }
-nix = "0.25.0"
-libc = "0.2.126"
-tokio = "1.21.2"
+nix = "0.25"
+libc = "0.2"
+tokio = "1"

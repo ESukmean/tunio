@@ -1,7 +1,7 @@
 use crate::config::{IfConfig, IfConfigBuilder};
 use crate::Error;
-use futures::{AsyncRead, AsyncWrite};
 use std::io::{Read, Write};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 pub trait PlatformIfConfigT: Default + Clone {
     type Builder: Default;
